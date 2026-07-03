@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Hugging Face Spaces requires the container to listen on 7860 by default.
+# Override with -e PORT=8501 (or via docker-compose) for other platforms.
+ENV PORT=7860
+
 # Install Python dependencies first (better Docker layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -17,11 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 EXPOSE 8501
+EXPOSE 7860
 
 # Basic container healthcheck so `docker ps` shows health status
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:${PORT:-8501}/_stcore/health || exit 1
 
-ENTRYPOINT ["streamlit", "run", "app.py", \
-            "--server.port=8501", \
-            "--server.address=0.0.0.0", \
-            "--server.headless=true"]
+ENTRYPOINT ["sh", "-c", "streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true"]

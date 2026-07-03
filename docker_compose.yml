@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  doc-extractor:
+    build: .
+    container_name: doc-extraction-system
+    environment:
+      - PORT=8501
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
