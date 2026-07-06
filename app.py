@@ -9,12 +9,16 @@ Run with:  streamlit run app.py
 
 import json
 import io
+import os
 
 import pandas as pd
 import streamlit as st
 from PIL import Image
 
 from extractor import process_document
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+SAMPLE_DIR = os.path.join(APP_DIR, "sample_docs")
 
 st.set_page_config(page_title="Document Extraction System", page_icon="📄", layout="wide")
 
@@ -42,10 +46,8 @@ with st.sidebar:
     st.divider()
     st.write("Try the bundled sample documents, or upload your own scanned invoice / KYC form image.")
 
-sample_choice = st.selectbox(
-    "Quick test with a sample document",
-    ["-- none --", "sample_docs/invoice_1.png", "sample_docs/invoice_2.png", "sample_docs/kyc_form_1.png"],
-)
+sample_files = ["-- none --", "invoice_1.png", "invoice_2.png", "kyc_form_1.png"]
+sample_choice = st.selectbox("Quick test with a sample document", sample_files)
 
 uploaded_file = st.file_uploader("Or upload your own document (PNG/JPG)", type=["png", "jpg", "jpeg"])
 
@@ -53,17 +55,27 @@ image = None
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
 elif sample_choice != "-- none --":
-    image = Image.open(sample_choice)
+    image = Image.open(os.path.join(SAMPLE_DIR, sample_choice))
 
 if image is not None:
     col1, col2 = st.columns([1, 1.2])
 
     with col1:
         st.subheader("Input Document")
-        st.image(image, use_container_width=True)
+        st.image(image, width='stretch')
 
     with st.spinner("Running OCR and extracting fields..."):
-        result = process_document(image)
+        try:
+            result = process_document(image)
+        except Exception as e:
+            st.error(
+                "OCR engine could not be reached. If you're running locally, make sure "
+                "Tesseract is installed and on your PATH. If this is happening on a "
+                "deployed app, check that `packages.txt` (Streamlit Cloud) or the "
+                "Dockerfile installs `tesseract-ocr`."
+            )
+            st.exception(e)
+            st.stop()
 
     with col2:
         st.subheader("Extracted Structured Data")
@@ -78,7 +90,7 @@ if image is not None:
             ("Total Amount", result.total_amount, result.field_confidence.get("total_amount")),
         ]
         df = pd.DataFrame(table_rows, columns=["Field", "Extracted Value", "Confidence"])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
 
         json_bytes = json.dumps(result.to_dict(), indent=2).encode("utf-8")
         csv_bytes = df.to_csv(index=False).encode("utf-8")
